@@ -15,14 +15,12 @@
   [string]
   (re-seq token-re string))
 
-(defn get-class [v]
-  (if
-    (some? (nth v class-punc)) class-punc
-    (if
-      (some? (nth v class-bool)) class-bool
-      (if
-        (some? (nth v class-number)) class-number
-        class-string))))
+(defn get-class [token]
+  (cond
+    (some? (nth token class-punc)) class-punc
+    (some? (nth token class-bool)) class-bool
+    (some? (nth token class-number)) class-number
+    :else class-string))
 
 (defn- parse-bool [s]
   (if (= s "true")
@@ -96,7 +94,7 @@
              [tokens (concat [value] rest-of-array)])
            [(rest tokens) [value]]))))))
 
-(defn parse-object
+(defn- parse-object
   ([tokens] (parse-object tokens false))
   ([tokens not-first]
    (let [tokens (expect-comma tokens "{" not-first)]
@@ -121,7 +119,6 @@
       (= cls class-bool) [(rest tokens) (parse-bool (nth cur class-bool))]
       (= cls class-number) [(rest tokens) (parse-number (nth cur class-number))]
       (= cls class-string) [(rest tokens) (parse-string (nth cur class-string))])))
-
 
 (defn parse
   "Parses a string as JSON"
