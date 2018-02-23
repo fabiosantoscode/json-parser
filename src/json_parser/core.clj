@@ -3,24 +3,28 @@
             [clojure.math.numeric-tower :as math]))
 
 (def token-re
-  #"(?:([:,\[\]{}])|(true|false)|(-?(?:[0-9]\d*\.?|0\.)\d*(?:[eE][+-]?\d+)?)|(\"(?:[^\"\\]|\\[\"\\/bfnrt]|\\u[0-9a-fA-F]{4})+?\"))")
+  #"(?:([:,\[\]{}])|(true|false)|(-?(?:[0-9]\d*\.?|0\.)\d*(?:[eE][+-]?\d+)?)|(\"(?:[^\"\\]|\\[\"\\/bfnrt]|\\u[0-9a-fA-F]{4})+?\")|(\s+))")
 
 (def class-punc 1)
 (def class-bool 2)
 (def class-number 3)
 (def class-string 4)
-
-(defn tokenise
-  "Turns a string of JSON into a seq of matches. Matches are vectors indexed by the class-* variables in this module."
-  [string]
-  (re-seq token-re string))
+(def class-whitespace 5)
 
 (defn get-class [token]
   (cond
     (some? (nth token class-punc)) class-punc
     (some? (nth token class-bool)) class-bool
     (some? (nth token class-number)) class-number
-    :else class-string))
+    (some? (nth token class-string)) class-string
+    (some? (nth token class-whitespace)) class-whitespace
+    :else (assert false "unreachable")))
+
+(defn tokenise
+  "Turns a string of JSON into a seq of matches. Matches are vectors indexed by the class-* variables in this module. Drops whitespace"
+  [string]
+  (let [sq (re-seq token-re string)]
+    (filter #(not= (get-class %) class-whitespace) sq)))
 
 (defn- parse-bool [s]
   (if (= s "true")
@@ -72,7 +76,7 @@
   (= (nth token class-punc) punc))
 
 (defn- expect-punc [tokens punc]
-  (assert (is-punc (first tokens) punc))
+  (assert (is-punc (first tokens) punc) (str "Expected '" punc "'"))
   (rest tokens))
 
 (declare parse-atom)
@@ -117,7 +121,7 @@
 (defn parse
   "Parses a string as JSON"
   [string]
-  (def tokens (tokenise string))
-  (let [[tokens value] (parse-atom tokens)]
+  (let [tokens (tokenise string)
+        [tokens value] (parse-atom tokens)]
     (assert (empty? tokens))
     value))

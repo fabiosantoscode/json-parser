@@ -24,7 +24,7 @@
   (testing "get-class"
     (is (= (get-class [nil nil nil nil ""]) class-string))))
 
-(deftest bool-test
+(deftest parse-test
   (testing "parsing booleans"
     (is (= (parse "false") false)))
   (testing "parsing numbers"
@@ -44,4 +44,11 @@
   (testing "parsing objects"
     (is (= (parse "{}") {}))
     (is (= (parse "{\"foo\":1}") {"foo" 1}))
-    (is (= (parse "{\"foo\":1,\"bar\":2}") {"foo" 1 "bar" 2}))))
+    (is (= (parse "{\"foo\":1,\"bar\":2}") {"foo" 1 "bar" 2})))
+  (testing "whitespace is allowable"
+    (is (= (parse " 1") 1))
+    (is (= (parse "1 ") 1))
+    (is (= (parse "\n1") 1))
+    (is (= (parse "1\n") 1))
+    (is (= (parse " { \"foo\" : 1 } ")))))
+
