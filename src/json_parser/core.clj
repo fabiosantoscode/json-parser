@@ -75,40 +75,33 @@
   (assert (is-punc (first tokens) punc))
   (rest tokens))
 
-(defn- expect-comma [tokens start-collection not-first]
-  (if not-first
-    (expect-punc tokens ",")
-    (expect-punc tokens start-collection)))
+(declare parse-atom)
 
-(declare parse-tok)
+(defn- parse-array [tokens]
+  (loop [tokens (expect-punc tokens "[")
+         accum []]
+    (if (is-punc (first tokens) "]")
+      [(rest tokens) []]
+      (let [[tokens value] (parse-atom tokens)
+            accum (conj accum value)]
+        (if-not (is-punc (first tokens) ",")
+          [(expect-punc tokens "]") accum]
+          (recur (rest tokens) accum))))))
 
-(defn- parse-array
-  ([tokens] (parse-array tokens false))
-  ([tokens not-first]
-   (let [tokens (expect-comma tokens "[" not-first)]
-     (if (is-punc (first tokens) "]")
-       [(rest tokens) []]
-       (let [[tokens value] (parse-tok tokens) ]
-         (if (is-punc (first tokens) ",")
-           (let [[tokens rest-of-array] (parse-array tokens true)]
-             [tokens (concat [value] rest-of-array)])
-           [(rest tokens) [value]]))))))
+(defn- parse-object [tokens]
+  (loop [tokens (expect-punc tokens "{")
+         accum {}]
+    (if (is-punc (first tokens) "}")
+      [(rest tokens) accum]
+      (let [[tokens key] (parse-atom tokens)
+            tokens (expect-punc tokens ":")
+            [tokens value] (parse-atom tokens)
+            accum (merge {key value} accum)]
+        (if-not (is-punc (first tokens) ",")
+          [(expect-punc tokens "}") accum]
+          (recur (rest tokens) accum))))))
 
-(defn- parse-object
-  ([tokens] (parse-object tokens false))
-  ([tokens not-first]
-   (let [tokens (expect-comma tokens "{" not-first)]
-     (if (is-punc (first tokens) "}")
-       [(rest tokens) {}]
-       (let [[tokens key] (parse-tok tokens)
-             tokens (expect-punc tokens ":")
-             [tokens value] (parse-tok tokens)]
-         (if (is-punc (first tokens) ",")
-           (let [[tokens rest-of-object] (parse-object tokens true)]
-             [tokens (merge {key value} rest-of-object)])
-           [(rest tokens) {key value}]))))))
-
-(defn parse-tok [tokens]
+(defn parse-atom [tokens]
   (let [cur (first tokens)
         cls (get-class cur)]
     ;(println "parse-tok:" cls " " cur)
@@ -118,12 +111,13 @@
       (= cls class-punc) (assert false "unreachable")
       (= cls class-bool) [(rest tokens) (parse-bool (nth cur class-bool))]
       (= cls class-number) [(rest tokens) (parse-number (nth cur class-number))]
-      (= cls class-string) [(rest tokens) (parse-string (nth cur class-string))])))
+      (= cls class-string) [(rest tokens) (parse-string (nth cur class-string))]
+      :else (assert false "unreachable"))))
 
 (defn parse
   "Parses a string as JSON"
   [string]
   (def tokens (tokenise string))
-  (let [[tokens value] (parse-tok tokens)]
+  (let [[tokens value] (parse-atom tokens)]
     (assert (empty? tokens))
     value))
