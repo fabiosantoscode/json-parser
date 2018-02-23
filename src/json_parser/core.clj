@@ -3,13 +3,14 @@
             [clojure.math.numeric-tower :as math]))
 
 (def token-re
-  #"(?:([:,\[\]{}])|(true|false)|(-?(?:[0-9]\d*\.?|0\.)\d*(?:[eE][+-]?\d+)?)|(\"(?:[^\"\\]|\\[\"\\/bfnrt]|\\u[0-9a-fA-F]{4})+?\")|(\s+))")
+  #"(?:([:,\[\]{}])|(true|false)|(-?(?:[0-9]\d*\.?|0\.)\d*(?:[eE][+-]?\d+)?)|(\"(?:[^\"\\]|\\[\"\\/bfnrt]|\\u[0-9a-fA-F]{4})+?\")|(\s+)|(.+?))")
 
 (def class-punc 1)
 (def class-bool 2)
 (def class-number 3)
 (def class-string 4)
 (def class-whitespace 5)
+(def class-syntax-error 6)
 
 (defn get-class [token]
   (cond
@@ -18,13 +19,20 @@
     (some? (nth token class-number)) class-number
     (some? (nth token class-string)) class-string
     (some? (nth token class-whitespace)) class-whitespace
+    (some? (nth token class-syntax-error)) class-syntax-error
     :else (assert false "unreachable")))
+
+(defn unexpected-tok [token]
+  (throw (Exception. (str "Unexpected: '" (nth token (get-class token)) "'"))))
 
 (defn tokenise
   "Turns a string of JSON into a seq of matches. Matches are vectors indexed by the class-* variables in this module. Drops whitespace"
   [string]
-  (let [sq (re-seq token-re string)]
-    (filter #(not= (get-class %) class-whitespace) sq)))
+  (for [token (re-seq token-re string)
+        :when (not= (get-class token) class-whitespace)]
+    (if (= (get-class token) class-syntax-error)
+      (unexpected-tok token)
+      token)))
 
 (defn- parse-bool [s]
   (if (= s "true")

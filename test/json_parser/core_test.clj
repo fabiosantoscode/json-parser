@@ -52,3 +52,7 @@
     (is (= (parse "1\n") 1))
     (is (= (parse " { \"foo\" : 1 } ")))))
 
+(deftest syntax-error-test
+  (testing "trash before or after content"
+    (is (thrown-with-msg? Exception #"Unexpected: '♥'" (parse "124♥")))
+    (is (thrown-with-msg? Exception #"Unexpected: 'x'" (parse "x124")))))
