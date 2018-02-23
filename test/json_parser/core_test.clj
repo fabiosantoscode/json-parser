@@ -51,7 +51,7 @@
     (is (= (parse "1 ") 1))
     (is (= (parse "\n1") 1))
     (is (= (parse "1\n") 1))
-    (is (= (parse " { \"foo\" : 1 } ")))))
+    (is (= (parse " { \"foo\" : 1 } ") {"foo" 1}))))
 
 (deftest syntax-error-test
   (testing "trash before or after content"
