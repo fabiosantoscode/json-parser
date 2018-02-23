@@ -3,7 +3,9 @@
             [json-parser.core :refer :all]))
 
 (defn tokenise-t [cls string]
-  (nth (first (tokenise string)) cls))
+  (let [tok (first (tokenise string))]
+    (assert (= cls (:cls tok)))
+    (:value (first (tokenise string)))))
 
 (deftest tokenise-test
   (testing "tokenising bools"
@@ -17,12 +19,11 @@
     (is (= (tokenise-t class-number "1") "1"))
     (is (= (tokenise-t class-number "1.1") "1.1"))
     (is (= (tokenise-t class-number "0.1") "0.1"))
-    (is (= (tokenise-t class-number "0.1e10") "0.1e10"))))
-
-
-(deftest get-class-test
-  (testing "get-class"
-    (is (= (get-class [nil nil nil nil ""]) class-string))))
+    (is (= (tokenise-t class-number "0.1e10") "0.1e10")))
+  (testing "tokens contain line and column information"
+    (let [[token1 token2] (tokenise "1\n  2")]
+      (is (= [(:line token1) (:col token1)] [1 1]))
+      (is (= [(:line token2) (:col token2)] [2 3])))))
 
 (deftest parse-test
   (testing "parsing booleans"

@@ -12,25 +12,44 @@
 (def class-whitespace 5)
 (def class-syntax-error 6)
 
-(defn get-class [token]
-  (cond
-    (some? (nth token class-punc)) class-punc
-    (some? (nth token class-bool)) class-bool
-    (some? (nth token class-number)) class-number
-    (some? (nth token class-string)) class-string
-    (some? (nth token class-whitespace)) class-whitespace
-    (some? (nth token class-syntax-error)) class-syntax-error
-    :else (assert false "unreachable")))
+(defrecord Token [value cls line col])
+
+(defn- match-to-token [match line col]
+  (def cls (cond
+      (some? (nth match class-punc)) class-punc
+      (some? (nth match class-bool)) class-bool
+      (some? (nth match class-number)) class-number
+      (some? (nth match class-string)) class-string
+      (some? (nth match class-whitespace)) class-whitespace
+      (some? (nth match class-syntax-error)) class-syntax-error
+      :else (assert false "unreachable")))
+  (def value (nth match cls))
+  (->Token value cls line col))
 
 (defn unexpected-tok [token]
-  (throw (Exception. (str "Unexpected: '" (nth token (get-class token)) "'"))))
+  (throw (Exception. (str "Unexpected: '" (:value token) "'"))))
+
+(defn matches-to-tokens
+  ([tokens] (matches-to-tokens tokens 1 1))
+  ([tokens line col]
+   (defn count-newlines [s] (count (filter #(= % \newline) s)))
+   (lazy-seq
+     (if-not (seq tokens)
+       nil
+       (let [token (match-to-token (first tokens) line col)
+             prev-line line
+             line (+ line (count-newlines (:value token)))
+             col (if (not= prev-line line)
+                   (+ 1 (count (last (split (:value token) #"\n"))))
+                   (+ col (count (:value token))))]
+         (cons token (matches-to-tokens (rest tokens) line col)))))))
 
 (defn tokenise
   "Turns a string of JSON into a seq of matches. Matches are vectors indexed by the class-* variables in this module. Drops whitespace"
   [string]
-  (for [token (re-seq token-re string)
-        :when (not= (get-class token) class-whitespace)]
-    (if (= (get-class token) class-syntax-error)
+  (for [token (matches-to-tokens (re-seq token-re string))
+        :when (not= (:cls token) class-whitespace)]
+    (if (= (:cls token) class-syntax-error)
       (unexpected-tok token)
       token)))
 
@@ -81,7 +100,7 @@
   (parse-string-part string-part))
 
 (defn- is-punc [token punc]
-  (= (nth token class-punc) punc))
+  (= (:value token) punc))
 
 (defn- expect-punc [tokens punc]
   (assert (is-punc (first tokens) punc) (str "Expected '" punc "'"))
@@ -115,15 +134,15 @@
 
 (defn parse-atom [tokens]
   (let [cur (first tokens)
-        cls (get-class cur)]
+        cls (:cls cur)]
     ;(println "parse-tok:" cls " " cur)
     (cond
       (is-punc cur "[") (parse-array tokens)
       (is-punc cur "{") (parse-object tokens)
       (= cls class-punc) (assert false "unreachable")
-      (= cls class-bool) [(rest tokens) (parse-bool (nth cur class-bool))]
-      (= cls class-number) [(rest tokens) (parse-number (nth cur class-number))]
-      (= cls class-string) [(rest tokens) (parse-string (nth cur class-string))]
+      (= cls class-bool) [(rest tokens) (parse-bool (:value cur))]
+      (= cls class-number) [(rest tokens) (parse-number (:value cur))]
+      (= cls class-string) [(rest tokens) (parse-string (:value cur))]
       :else (assert false "unreachable"))))
 
 (defn parse
