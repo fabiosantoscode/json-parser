@@ -55,5 +55,11 @@
 
 (deftest syntax-error-test
   (testing "trash before or after content"
-    (is (thrown-with-msg? Exception #"Unexpected: '♥'" (parse "124♥")))
-    (is (thrown-with-msg? Exception #"Unexpected: 'x'" (parse "x124")))))
+    (is (thrown-with-msg? Exception #"Unexpected: '♥' at 1:4$" (parse "124♥")))
+    (is (thrown-with-msg? Exception #"Unexpected: 'x' at 1:1$" (parse "x124"))))
+  (testing "unfinished arrays and objects"
+    (is (thrown-with-msg? Exception #"Unexpected: end of input at 1:2. Expected atom" (parse "[")))
+    (is (thrown-with-msg? Exception #"Unexpected: end of input at 1:4. Expected atom" (parse "[1,")))
+    (is (thrown-with-msg? Exception #"Unexpected: end of input at 1:2. Expected atom" (parse "{"))))
+  (testing "JSON after end"
+    (is (thrown-with-msg? Exception #"Unexpected: '\[' at 1:3\. Expected end of input" (parse "[][")))))

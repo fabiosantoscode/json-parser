@@ -11,6 +11,7 @@
 (def class-string 4)
 (def class-whitespace 5)
 (def class-syntax-error 6)
+(def class-eof 7)
 
 (defrecord Token [value cls line col])
 
@@ -26,16 +27,47 @@
   (def value (nth match cls))
   (->Token value cls line col))
 
-(defn unexpected-tok [token]
-  (throw (Exception. (str "Unexpected: '" (:value token) "'"))))
+(defn- is-punc [token punc]
+  (and (= (:value token) punc) (= (:cls token) class-punc)))
 
-(defn matches-to-tokens
+(defn- at-string [token]
+  (str "at " (:line token) ":" (:col token)))
+
+(defn- token-error-string [token]
+  (if (= (:cls token) class-eof)
+    "end of input"
+    (str "'" (:value token) "'")))
+
+(defn- unexpected-tok
+  ([token] (unexpected-tok token nil))
+  ([token message]
+    (def message-string (if message (str ". " message) ""))
+    (throw (Exception. (str
+                         "Unexpected: "
+                         (token-error-string token)
+                         " "
+                         (at-string token)
+                         message-string)))))
+
+(defn- expect [tokens cls value message]
+  (let [[cur & remaining] tokens]
+    (if (and (= (:cls cur) cls) (= (:value cur) value))
+      remaining
+      (unexpected-tok cur message))))
+
+(defn- expect-punc [tokens punc]
+  (expect tokens class-punc punc (str "Expected '" punc "'")))
+
+(defn- expect-eof [tokens]
+  (expect tokens class-eof "EOF" (str "Expected end of input")))
+
+(defn- matches-to-tokens
   ([tokens] (matches-to-tokens tokens 1 1))
   ([tokens line col]
    (defn count-newlines [s] (count (filter #(= % \newline) s)))
    (lazy-seq
      (if-not (seq tokens)
-       nil
+       (seq [(->Token "EOF" class-eof line col)])
        (let [token (match-to-token (first tokens) line col)
              prev-line line
              line (+ line (count-newlines (:value token)))
@@ -99,13 +131,6 @@
   (def string-part (nth (re-find #"^(?:\")(.*?)(?:\")$" s) 1))
   (parse-string-part string-part))
 
-(defn- is-punc [token punc]
-  (= (:value token) punc))
-
-(defn- expect-punc [tokens punc]
-  (assert (is-punc (first tokens) punc) (str "Expected '" punc "'"))
-  (rest tokens))
-
 (declare parse-atom)
 
 (defn- parse-array [tokens]
@@ -132,23 +157,22 @@
           [(expect-punc tokens "}") accum]
           (recur (rest tokens) accum))))))
 
-(defn parse-atom [tokens]
+(defn- parse-atom [tokens]
   (let [cur (first tokens)
         cls (:cls cur)]
     ;(println "parse-tok:" cls " " cur)
     (cond
       (is-punc cur "[") (parse-array tokens)
       (is-punc cur "{") (parse-object tokens)
-      (= cls class-punc) (assert false "unreachable")
       (= cls class-bool) [(rest tokens) (parse-bool (:value cur))]
       (= cls class-number) [(rest tokens) (parse-number (:value cur))]
       (= cls class-string) [(rest tokens) (parse-string (:value cur))]
-      :else (assert false "unreachable"))))
+      :else (unexpected-tok cur "Expected atom"))))
 
 (defn parse
   "Parses a string as JSON"
   [string]
   (let [tokens (tokenise string)
         [tokens value] (parse-atom tokens)]
-    (assert (empty? tokens))
+    (expect-eof tokens)
     value))
